@@ -167,6 +167,7 @@ export default function Leads() {
             <MenuItem value="Follow-Up Scheduled">Follow-Up Scheduled</MenuItem>
             <MenuItem value="Won">Won</MenuItem>
             <MenuItem value="Lost">Lost</MenuItem>
+            <MenuItem value="Not Interested">Not Interested</MenuItem>
           </TextField>
         </CardContent>
       </Card>

@@ -1,6 +1,6 @@
 <?php
 // Database configuration for Mugai CRM
-$host = '127.0.0.1';
+$host = 'localhost';
 $db   = 'mugai';
 $user = 'root';
 $pass = '';

@@ -8,9 +8,10 @@ $method = $_SERVER['REQUEST_METHOD'];
 // Ensure next_followup_time column exists in leads table
 try {
     $pdo->exec("ALTER TABLE leads ADD COLUMN next_followup_time TIME NULL AFTER next_followup_date");
-} catch (Exception $e) {
-    // Handled
-}
+} catch (Exception $e) {}
+try {
+    $pdo->exec("ALTER TABLE leads MODIFY COLUMN status VARCHAR(50) DEFAULT 'New'");
+} catch (Exception $e) {}
 
 // Auto-create lead_followups history table if not exists
 $pdo->exec("CREATE TABLE IF NOT EXISTS lead_followups (
@@ -24,7 +25,6 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS lead_followups (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-
 
 if ($method === 'GET') {
     // Return all leads list for dropdown in manual follow-up creation

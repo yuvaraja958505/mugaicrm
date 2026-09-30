@@ -15,7 +15,14 @@ import {
   CircularProgress,
   Divider,
   Autocomplete,
+  IconButton,
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
+import { Add as AddIcon, Check as CheckIcon, Close as CloseIcon } from '@mui/icons-material';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
 
@@ -53,6 +60,38 @@ export default function AddLead() {
   const [services, setServices] = useState([]);
   const [cities, setCities] = useState([]);
   const [usersList, setUsersList] = useState([]);
+
+  // Inline Add Business Domain State
+  const [isCustomDomainMode, setIsCustomDomainMode] = useState(false);
+  const [newDomainName, setNewDomainName] = useState('');
+  const [savingDomain, setSavingDomain] = useState(false);
+  const [domainError, setDomainError] = useState('');
+
+  const handleSaveCustomDomain = async () => {
+    const trimmed = newDomainName.trim();
+    if (!trimmed) {
+      setDomainError('Please enter a domain name');
+      return;
+    }
+    setSavingDomain(true);
+    setDomainError('');
+    try {
+      const res = await api.post('/masters/domains.php', {
+        name: trimmed,
+        description: '',
+      });
+      const newId = res.data.id;
+      const newDomainObj = { id: newId, name: trimmed };
+      setDomains((prev) => [...prev, newDomainObj]);
+      setFormData((prev) => ({ ...prev, domain_id: newId }));
+      setIsCustomDomainMode(false);
+      setNewDomainName('');
+    } catch (err) {
+      setDomainError(err.response?.data?.error || 'Failed to save domain');
+    } finally {
+      setSavingDomain(false);
+    }
+  };
 
   // Form State
   const initialForm = {
@@ -394,18 +433,104 @@ export default function AddLead() {
               </FormField>
 
               <FormField label="Business Domain">
-                <TextField
-                  select
-                  value={formData.domain_id}
-                  onChange={(e) => setFormData({ ...formData, domain_id: e.target.value })}
-                  fullWidth
-                  size="small"
-                >
-                  <MenuItem value="">-None-</MenuItem>
-                  {domains.map((d) => (
-                    <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
-                  ))}
-                </TextField>
+                {!isCustomDomainMode ? (
+                  <Box sx={{ display: 'flex', gap: 0.8, alignItems: 'center' }}>
+                    <TextField
+                      select
+                      value={formData.domain_id}
+                      onChange={(e) => setFormData({ ...formData, domain_id: e.target.value })}
+                      fullWidth
+                      size="small"
+                    >
+                      <MenuItem value="">-None-</MenuItem>
+                      {domains.map((d) => (
+                        <MenuItem key={d.id} value={d.id}>{d.name}</MenuItem>
+                      ))}
+                    </TextField>
+                    <Tooltip title="Add New Business Domain">
+                      <IconButton
+                        onClick={() => {
+                          setIsCustomDomainMode(true);
+                          setDomainError('');
+                          setNewDomainName('');
+                        }}
+                        sx={{
+                          bgcolor: '#f1f5f9',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '4px',
+                          p: '7px',
+                          color: '#0c1f54',
+                          '&:hover': { bgcolor: '#e2e8f0' },
+                        }}
+                      >
+                        <AddIcon sx={{ fontSize: 20 }} />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
+                ) : (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                    <Box sx={{ display: 'flex', gap: 0.8, alignItems: 'center' }}>
+                      <TextField
+                        placeholder="Type new domain name..."
+                        value={newDomainName}
+                        onChange={(e) => setNewDomainName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSaveCustomDomain();
+                          }
+                        }}
+                        fullWidth
+                        size="small"
+                        autoFocus
+                      />
+                      <Tooltip title="Save & Add Domain">
+                        <IconButton
+                          onClick={handleSaveCustomDomain}
+                          disabled={savingDomain}
+                          sx={{
+                            bgcolor: '#0c1f54',
+                            border: '1px solid #0c1f54',
+                            borderRadius: '4px',
+                            p: '7px',
+                            color: '#ffffff',
+                            '&:hover': { bgcolor: '#07153d' },
+                          }}
+                        >
+                          {savingDomain ? (
+                            <CircularProgress size={18} color="inherit" />
+                          ) : (
+                            <CheckIcon sx={{ fontSize: 20 }} />
+                          )}
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Cancel">
+                        <IconButton
+                          onClick={() => {
+                            setIsCustomDomainMode(false);
+                            setNewDomainName('');
+                            setDomainError('');
+                          }}
+                          sx={{
+                            bgcolor: '#f1f5f9',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '4px',
+                            p: '7px',
+                            color: '#64748b',
+                            '&:hover': { bgcolor: '#e2e8f0' },
+                          }}
+                        >
+                          <CloseIcon sx={{ fontSize: 20 }} />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
+                    {domainError && (
+                      <Typography variant="caption" sx={{ color: '#e53e3e', fontWeight: 600 }}>
+                        {domainError}
+                      </Typography>
+                    )}
+                  </Box>
+                )}
               </FormField>
 
               <FormField label="Interested Domain Name">
@@ -434,6 +559,7 @@ export default function AddLead() {
                   <MenuItem value="Website">Website</MenuItem>
                   <MenuItem value="Cold Call">Cold Call</MenuItem>
                   <MenuItem value="Exhibition">Exhibition</MenuItem>
+                  <MenuItem value="Previous Client">Previous Client</MenuItem>
                   <MenuItem value="Other">Others</MenuItem>
                 </TextField>
               </FormField>
@@ -451,6 +577,7 @@ export default function AddLead() {
                   <MenuItem value="Follow-Up Scheduled">Follow-Up Scheduled</MenuItem>
                   <MenuItem value="Won">Won</MenuItem>
                   <MenuItem value="Lost">Lost</MenuItem>
+                  <MenuItem value="Not Interested">Not Interested</MenuItem>
                 </TextField>
               </FormField>
 
@@ -500,7 +627,7 @@ export default function AddLead() {
                     label={<Typography variant="caption" sx={{ fontWeight: 700, color: '#333' }}>Schedule Follow-Up</Typography>}
                   />
                   {formData.next_followup_required && (
-                    <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
+                    <Box sx={{ mt: 1.5, display: 'flex', gap: 1 }}>
                       <TextField
                         type="date"
                         label="Date"

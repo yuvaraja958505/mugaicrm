@@ -8,9 +8,10 @@ $method = $_SERVER['REQUEST_METHOD'];
 // Ensure next_followup_time column exists in leads table
 try {
     $pdo->exec("ALTER TABLE leads ADD COLUMN next_followup_time TIME NULL AFTER next_followup_date");
-} catch (Exception $e) {
-    // Column already exists or table setup handled
-}
+} catch (Exception $e) {}
+try {
+    $pdo->exec("ALTER TABLE leads MODIFY COLUMN status VARCHAR(50) DEFAULT 'New'");
+} catch (Exception $e) {}
 
 
 if ($method === 'GET') {
@@ -153,15 +154,15 @@ if ($method === 'POST') {
     $stmt = $pdo->prepare("INSERT INTO leads (
         name, contact, email, business_name, website, domain_id, interested_domain, 
         lead_source, address, city_id, required_services, expected_budget, company_budget, 
-        closed_budget, notes, next_followup_required, next_followup_date, next_followup_time, status, 
-        lead_owner_id, created_by
+        closed_budget, notes, next_followup_required, next_followup_date, next_followup_time, 
+        status, lead_owner_id, created_by
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
     $stmt->execute([
         $name, $contact, $email, $business_name, $website, $domain_id, $interested_domain,
         $lead_source, $address, $city_id, $required_services, $expected_budget, $company_budget,
-        $closed_budget, $notes, $next_followup_required, $next_followup_date, $next_followup_time, $status,
-        $lead_owner_id, $user['id']
+        $closed_budget, $notes, $next_followup_required, $next_followup_date, $next_followup_time,
+        $status, $lead_owner_id, $user['id']
     ]);
 
     $leadId = $pdo->lastInsertId();
@@ -265,26 +266,30 @@ if ($method === 'PUT') {
             name = ?, contact = ?, email = ?, business_name = ?, website = ?, domain_id = ?, 
             interested_domain = ?, lead_source = ?, address = ?, city_id = ?, 
             required_services = ?, expected_budget = ?, company_budget = ?, closed_budget = ?, 
-            notes = ?, next_followup_required = ?, next_followup_date = ?, next_followup_time = ?, status = ?, lead_owner_id = ?
+            notes = ?, next_followup_required = ?, next_followup_date = ?, next_followup_time = ?, 
+            status = ?, lead_owner_id = ?
             WHERE id = ?");
         $stmt->execute([
             $name, $contact, $email, $business_name, $website, $domain_id,
             $interested_domain, $lead_source, $address, $city_id,
             $required_services, $expected_budget, $company_budget, $closed_budget,
-            $notes, $next_followup_required, $next_followup_date, $next_followup_time, $status, $lead_owner_id, $id
+            $notes, $next_followup_required, $next_followup_date, $next_followup_time,
+            $status, $lead_owner_id, $id
         ]);
     } else {
         $stmt = $pdo->prepare("UPDATE leads SET 
             name = ?, contact = ?, email = ?, business_name = ?, website = ?, domain_id = ?, 
             interested_domain = ?, lead_source = ?, address = ?, city_id = ?, 
             required_services = ?, expected_budget = ?, company_budget = ?, closed_budget = ?, 
-            notes = ?, next_followup_required = ?, next_followup_date = ?, next_followup_time = ?, status = ?
+            notes = ?, next_followup_required = ?, next_followup_date = ?, next_followup_time = ?, 
+            status = ?
             WHERE id = ?" . ($user['role'] !== 'admin' ? " AND (lead_owner_id = {$user['id']} OR created_by = {$user['id']})" : ""));
         $stmt->execute([
             $name, $contact, $email, $business_name, $website, $domain_id,
             $interested_domain, $lead_source, $address, $city_id,
             $required_services, $expected_budget, $company_budget, $closed_budget,
-            $notes, $next_followup_required, $next_followup_date, $next_followup_time, $status, $id
+            $notes, $next_followup_required, $next_followup_date, $next_followup_time,
+            $status, $id
         ]);
     }
 

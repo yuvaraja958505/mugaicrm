@@ -11,12 +11,6 @@ if ($method === 'GET') {
     exit;
 }
 
-if ($user['role'] !== 'admin') {
-    http_response_code(403);
-    echo json_encode(['error' => 'Forbidden: Only Admin can modify Business Domains']);
-    exit;
-}
-
 $input = json_decode(file_get_contents('php://input'), true);
 
 if ($method === 'POST') {
@@ -29,7 +23,13 @@ if ($method === 'POST') {
     }
     $stmt = $pdo->prepare("INSERT INTO business_domains (name, description) VALUES (?, ?)");
     $stmt->execute([$name, $description]);
-    echo json_encode(['message' => 'Business Domain created', 'id' => $pdo->lastInsertId()]);
+    echo json_encode(['message' => 'Business Domain created', 'id' => (int)$pdo->lastInsertId()]);
+    exit;
+}
+
+if ($user['role'] !== 'admin') {
+    http_response_code(403);
+    echo json_encode(['error' => 'Forbidden: Only Admin can modify or delete Business Domains']);
     exit;
 }
 

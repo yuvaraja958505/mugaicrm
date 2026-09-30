@@ -20,6 +20,7 @@ import {
   Autocomplete,
   Avatar,
   Grid,
+  Badge,
 } from '@mui/material';
 import {
   EventRepeat as FollowUpIcon,
@@ -36,11 +37,31 @@ import {
   Business as BusinessIcon,
   Comment as ChatIcon,
   PendingActions as NextIcon,
+  NotificationsActive as NotificationsActiveIcon,
+  CalendarToday as CalendarTodayIcon,
 } from '@mui/icons-material';
 import api from '../api';
 
 const getTodayString = () => {
   const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getTomorrowString = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getYesterdayString = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -144,20 +165,14 @@ export default function FollowUps() {
     }
   };
 
-  const isMissed = (f) => {
-    if (!f.next_followup_date) return false;
-    const todayStr = getTodayString();
-    if (f.next_followup_date < todayStr) return true;
-    if (f.next_followup_date === todayStr && f.next_followup_time) {
-      const currentTimeStr = getCurrentTimeString();
-      if (f.next_followup_time < currentTimeStr) return true;
-    }
-    return false;
-  };
+  const [activeTab, setActiveTab] = useState('all');
 
-  // Filtered lists for Next vs Missed
-  const { nextFollowups, missedFollowups } = useMemo(() => {
+  // Categorize follow-ups into 4 distinct sections: Yesterday, Today, Tomorrow (1-Day Reminder), Upcoming
+  const { yesterdayFollowups, todayFollowups, tomorrowFollowups, upcomingFollowups } = useMemo(() => {
     const q = search.toLowerCase();
+    const todayStr = getTodayString();
+    const tomorrowStr = getTomorrowString();
+
     const filtered = followups.filter((f) => {
       return (
         (f.name || '').toLowerCase().includes(q) ||
@@ -167,17 +182,29 @@ export default function FollowUps() {
       );
     });
 
-    const next = [];
-    const missed = [];
+    const yesterday = [];
+    const today = [];
+    const tomorrow = [];
+    const upcoming = [];
+
     filtered.forEach((f) => {
-      if (isMissed(f)) {
-        missed.push(f);
+      if (!f.next_followup_date || f.next_followup_date < todayStr) {
+        yesterday.push(f);
+      } else if (f.next_followup_date === todayStr) {
+        today.push(f);
+      } else if (f.next_followup_date === tomorrowStr) {
+        tomorrow.push(f);
       } else {
-        next.push(f);
+        upcoming.push(f);
       }
     });
 
-    return { nextFollowups: next, missedFollowups: missed };
+    return {
+      yesterdayFollowups: yesterday,
+      todayFollowups: today,
+      tomorrowFollowups: tomorrow,
+      upcomingFollowups: upcoming,
+    };
   }, [followups, search]);
 
   const handleOpenEdit = (lead) => {
@@ -255,9 +282,32 @@ export default function FollowUps() {
     }
   };
 
-  const renderFollowupItem = (f, missedItem) => {
+  const renderFollowupItem = (f, categoryKey) => {
     const historyLogs = f.history || [];
     const noteObj = parseNoteHeader(f.notes);
+    const isTomorrow = categoryKey === 'tomorrow' || f.next_followup_date === getTomorrowString();
+    const isToday = categoryKey === 'today' || f.next_followup_date === getTodayString();
+    const isYesterday = categoryKey === 'yesterday' || (f.next_followup_date && f.next_followup_date < getTodayString());
+
+    let avatarBg = '#0c1f54';
+    let cardBorderLeft = '3px solid #0c1f54';
+    let cardBg = '#ffffff';
+
+    if (isTomorrow) {
+      avatarBg = '#d97706';
+      cardBorderLeft = '3px solid #d97706';
+      cardBg = '#fffdfa';
+    } else if (isToday) {
+      avatarBg = '#16a34a';
+      cardBorderLeft = '3px solid #16a34a';
+    } else if (isYesterday) {
+      avatarBg = '#ef4444';
+      cardBorderLeft = '3px solid #ef4444';
+      cardBg = '#fff5f5';
+    } else {
+      avatarBg = '#2563eb';
+      cardBorderLeft = '3px solid #2563eb';
+    }
 
     return (
       <Box
@@ -269,89 +319,39 @@ export default function FollowUps() {
           flexDirection: 'column',
           gap: 1.2,
           borderBottom: '1px solid #f1f5f9',
-          bgcolor: missedItem ? '#fff5f5' : '#ffffff',
-          transition: 'all 0.15s ease',
-          '&:hover': {
-            bgcolor: missedItem ? '#fef2f2' : '#f8fafc',
-          },
+          bgcolor: cardBg,
+          borderLeft: cardBorderLeft,
         }}
       >
-        {/* Top Line: Avatar, Name, Chips, & Call/Update Actions */}
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, flexGrow: 1 }}>
-            <Avatar
-              sx={{
-                width: 40,
-                height: 40,
-                bgcolor: missedItem ? '#ef4444' : '#0c1f54',
-                color: '#ffffff',
-                fontWeight: 800,
-                fontSize: '0.85rem',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
-                flexShrink: 0,
-              }}
-            >
-              {getInitials(f.name)}
+        {/* Top Header: Lead Info & Update button */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Avatar sx={{ bgcolor: avatarBg, width: 34, height: 34, fontSize: '0.85rem', fontWeight: 700 }}>
+              {(f.name || 'L').charAt(0).toUpperCase()}
             </Avatar>
-
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
+            <Box>
+              <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#0c1f54', lineHeight: 1.2 }}>
                 {f.name}
               </Typography>
-              {f.business_name && (
-                <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: 'block', mt: 0.2 }}>
-                  {f.business_name}
-                </Typography>
-              )}
+              <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>
+                {f.business_name ? `${f.business_name} • ` : ''}{f.contact}
+              </Typography>
             </Box>
           </Box>
-
-          {/* Quick Action Buttons */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexShrink: 0 }}>
-            {f.contact && (
-              <Tooltip title={`Call ${f.name} (${f.contact})`}>
-                <Button
-                  component="a"
-                  href={`tel:${f.contact}`}
-                  size="small"
-                  variant="contained"
-                  disableElevation
-                  startIcon={<CallIcon fontSize="small" />}
-                  sx={{
-                    fontWeight: 800,
-                    bgcolor: '#16a34a',
-                    color: '#ffffff',
-                    textTransform: 'none',
-                    px: 1.5,
-                    py: 0.3,
-                    borderRadius: '6px',
-                    fontSize: '0.78rem',
-                    minWidth: 65,
-                    '&:hover': { bgcolor: '#15803d' },
-                  }}
-                >
-                  Call
-                </Button>
-              </Tooltip>
-            )}
-
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Button
               size="small"
-              variant="contained"
-              disableElevation
-              startIcon={<EditIcon fontSize="small" />}
+              variant="outlined"
+              startIcon={<EditIcon sx={{ fontSize: 14 }} />}
               onClick={() => handleOpenEdit(f)}
               sx={{
-                fontWeight: 800,
-                bgcolor: missedItem ? '#ef4444' : '#0c1f54',
-                color: '#ffffff',
+                borderRadius: 1.5,
                 textTransform: 'none',
-                px: 1.6,
-                py: 0.3,
-                borderRadius: '6px',
-                fontSize: '0.78rem',
-                minWidth: 75,
-                '&:hover': { bgcolor: missedItem ? '#dc2626' : '#07153d' },
+                fontWeight: 700,
+                fontSize: '0.75rem',
+                color: '#0c1f54',
+                borderColor: '#cbd5e1',
+                '&:hover': { borderColor: '#0c1f54', bgcolor: '#f8fafc' }
               }}
             >
               Update
@@ -362,14 +362,14 @@ export default function FollowUps() {
         {/* Date & Time Chips Line */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, flexWrap: 'wrap' }}>
           <Chip
-            icon={missedItem ? <WarningIcon sx={{ fontSize: 12 }} /> : <EventIcon sx={{ fontSize: 12 }} />}
+            icon={isYesterday ? <WarningIcon sx={{ fontSize: 12 }} /> : isTomorrow ? <NotificationsActiveIcon sx={{ fontSize: 12 }} /> : <EventIcon sx={{ fontSize: 12 }} />}
             label={f.next_followup_date || 'Not set'}
             size="small"
             sx={{
               height: 22,
               fontSize: '0.7rem',
               fontWeight: 800,
-              bgcolor: missedItem ? '#ef4444' : '#0c1f54',
+              bgcolor: isYesterday ? '#ef4444' : isTomorrow ? '#d97706' : '#0c1f54',
               color: '#ffffff',
               '& .MuiChip-icon': { color: '#ffffff' },
             }}
@@ -385,19 +385,50 @@ export default function FollowUps() {
                 height: 22,
                 fontSize: '0.7rem',
                 fontWeight: 800,
-                borderColor: missedItem ? '#ef4444' : '#0c1f54',
-                color: missedItem ? '#ef4444' : '#0c1f54',
+                borderColor: isYesterday ? '#ef4444' : isTomorrow ? '#d97706' : '#0c1f54',
+                color: isYesterday ? '#ef4444' : isTomorrow ? '#d97706' : '#0c1f54',
               }}
             />
           )}
 
-          {missedItem && (
+          {/* Category Trigger Badge */}
+          {isTomorrow && (
             <Chip
-              label="OVERDUE"
+              icon={<NotificationsActiveIcon sx={{ fontSize: 12 }} />}
+              label="🔔 REMINDER: 1 DAY BEFORE"
               size="small"
               sx={{
-                height: 20,
-                fontSize: '0.62rem',
+                height: 22,
+                fontSize: '0.66rem',
+                fontWeight: 900,
+                bgcolor: '#fffbeb',
+                color: '#b45309',
+                border: '1px solid #fde68a',
+                '& .MuiChip-icon': { color: '#b45309' },
+              }}
+            />
+          )}
+          {isToday && (
+            <Chip
+              label="DUE TODAY"
+              size="small"
+              sx={{
+                height: 22,
+                fontSize: '0.66rem',
+                fontWeight: 900,
+                bgcolor: '#f0fdf4',
+                color: '#15803d',
+                border: '1px solid #bbf7d0',
+              }}
+            />
+          )}
+          {isYesterday && (
+            <Chip
+              label="OVERDUE (YESTERDAY)"
+              size="small"
+              sx={{
+                height: 22,
+                fontSize: '0.66rem',
                 fontWeight: 900,
                 bgcolor: '#fef2f2',
                 color: '#ef4444',
@@ -414,7 +445,7 @@ export default function FollowUps() {
         </Box>
 
         {/* Discussion Note Snippet Preview Line */}
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.6, bgcolor: '#f8fafc', p: 1, px: 1.2, borderRadius: '6px', borderLeft: missedItem ? '3px solid #ef4444' : '3px solid #0c1f54' }}>
+        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.6, bgcolor: '#f8fafc', p: 1, px: 1.2, borderRadius: '6px', borderLeft: cardBorderLeft }}>
           <ChatIcon sx={{ fontSize: 14, color: '#64748b', mt: 0.2, flexShrink: 0 }} />
           <Typography
             variant="body2"
@@ -447,7 +478,7 @@ export default function FollowUps() {
               Lead Follow-Up
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-              Two-column view for Next and Missed follow-up tasks
+              Categorized sections for Yesterday, Today, Tomorrow (1-Day Reminder), and Upcoming
             </Typography>
           </Box>
         </Box>
@@ -493,78 +524,255 @@ export default function FollowUps() {
       {error && <Alert severity="error" onClose={() => setError('')} sx={{ mb: 3, borderRadius: '8px' }}>{error}</Alert>}
       {success && <Alert severity="success" onClose={() => setSuccess('')} sx={{ mb: 3, borderRadius: '8px' }}>{success}</Alert>}
 
-      {/* 2-Column Side-by-Side Grid Layout */}
+      {/* Category Filter Pills / Tabs */}
+      <Box sx={{ display: 'flex', gap: 1, mb: 3, flexWrap: 'wrap' }}>
+        <Button
+          size="small"
+          variant={activeTab === 'all' ? 'contained' : 'outlined'}
+          onClick={() => setActiveTab('all')}
+          sx={{
+            fontWeight: 800,
+            borderRadius: '20px',
+            textTransform: 'none',
+            bgcolor: activeTab === 'all' ? '#0c1f54' : '#ffffff',
+            color: activeTab === 'all' ? '#ffffff' : '#334155',
+            borderColor: '#cbd5e1',
+          }}
+        >
+          All Sections
+        </Button>
+
+        <Button
+          size="small"
+          variant={activeTab === 'tomorrow' ? 'contained' : 'outlined'}
+          onClick={() => setActiveTab('tomorrow')}
+          startIcon={<NotificationsActiveIcon sx={{ fontSize: 16 }} />}
+          sx={{
+            fontWeight: 800,
+            borderRadius: '20px',
+            textTransform: 'none',
+            bgcolor: activeTab === 'tomorrow' ? '#d97706' : '#ffffff',
+            color: activeTab === 'tomorrow' ? '#ffffff' : '#b45309',
+            borderColor: '#fde68a',
+            '&:hover': { bgcolor: activeTab === 'tomorrow' ? '#b45309' : '#fffbeb' },
+          }}
+        >
+          Tomorrow (1-Day Reminder) ({tomorrowFollowups.length})
+        </Button>
+
+        <Button
+          size="small"
+          variant={activeTab === 'today' ? 'contained' : 'outlined'}
+          onClick={() => setActiveTab('today')}
+          startIcon={<EventIcon sx={{ fontSize: 16 }} />}
+          sx={{
+            fontWeight: 800,
+            borderRadius: '20px',
+            textTransform: 'none',
+            bgcolor: activeTab === 'today' ? '#16a34a' : '#ffffff',
+            color: activeTab === 'today' ? '#ffffff' : '#15803d',
+            borderColor: '#bbf7d0',
+            '&:hover': { bgcolor: activeTab === 'today' ? '#15803d' : '#f0fdf4' },
+          }}
+        >
+          Today ({todayFollowups.length})
+        </Button>
+
+        <Button
+          size="small"
+          variant={activeTab === 'upcoming' ? 'contained' : 'outlined'}
+          onClick={() => setActiveTab('upcoming')}
+          startIcon={<NextIcon sx={{ fontSize: 16 }} />}
+          sx={{
+            fontWeight: 800,
+            borderRadius: '20px',
+            textTransform: 'none',
+            bgcolor: activeTab === 'upcoming' ? '#3730a3' : '#ffffff',
+            color: activeTab === 'upcoming' ? '#ffffff' : '#3730a3',
+            borderColor: '#c7d2fe',
+            '&:hover': { bgcolor: activeTab === 'upcoming' ? '#312e81' : '#eef2ff' },
+          }}
+        >
+          Upcoming ({upcomingFollowups.length})
+        </Button>
+
+        <Button
+          size="small"
+          variant={activeTab === 'yesterday' ? 'contained' : 'outlined'}
+          onClick={() => setActiveTab('yesterday')}
+          startIcon={<WarningIcon sx={{ fontSize: 16 }} />}
+          sx={{
+            fontWeight: 800,
+            borderRadius: '20px',
+            textTransform: 'none',
+            bgcolor: activeTab === 'yesterday' ? '#ef4444' : '#ffffff',
+            color: activeTab === 'yesterday' ? '#ffffff' : '#b91c1c',
+            borderColor: '#fca5a5',
+            '&:hover': { bgcolor: activeTab === 'yesterday' ? '#dc2626' : '#fff5f5' },
+          }}
+        >
+          Yesterday / Overdue ({yesterdayFollowups.length})
+        </Button>
+      </Box>
+
+      {/* 4 Categorized Sections Grid Layout */}
       {loading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
           <CircularProgress size={30} sx={{ color: '#0c1f54' }} />
         </Box>
       ) : (
         <Grid container spacing={3}>
-          {/* Column 1: Next Follow-Ups */}
-          <Grid item xs={12} md={6}>
-            <Card sx={{ border: '1px solid #cbd5e1', borderRadius: '14px', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', bgcolor: '#ffffff', overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
-              {/* Column 1 Header */}
-              <Box sx={{ px: 2.5, py: 1.8, bgcolor: '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <NextIcon sx={{ color: '#0c1f54', fontSize: 22 }} />
-                  <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0c1f54' }}>
-                    Next Follow-Ups
-                  </Typography>
-                </Box>
-                <Chip
-                  label={nextFollowups.length}
-                  size="small"
-                  sx={{ fontWeight: 800, bgcolor: '#e0e7ff', color: '#0c1f54', height: 22 }}
-                />
-              </Box>
-
-              {/* Column 1 List Body */}
-              <CardContent sx={{ p: 0, flexGrow: 1, overflowY: 'auto', maxHeight: 680 }}>
-                {nextFollowups.length === 0 ? (
-                  <Box sx={{ textAlign: 'center', py: 6, px: 2 }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-                      No upcoming follow-ups scheduled.
-                    </Typography>
+          {/* Section 1: Tomorrow (1-Day Reminder System Triggered) */}
+          {(activeTab === 'all' || activeTab === 'tomorrow') && (
+            <Grid item xs={12} md={activeTab === 'all' ? 6 : 12}>
+              <Card sx={{ border: '1px solid #fde68a', borderRadius: '14px', boxShadow: '0 4px 20px rgba(217, 119, 6, 0.05)', bgcolor: '#ffffff', overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <Box sx={{ px: 2.5, py: 1.8, bgcolor: '#fffbeb', borderBottom: '1px solid #fde68a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <NotificationsActiveIcon sx={{ color: '#d97706', fontSize: 22 }} />
+                    <Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#b45309', lineHeight: 1.2 }}>
+                        Tomorrow (1-Day Reminder)
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#b45309', fontWeight: 600 }}>
+                        Triggered 1 day before scheduled follow-up
+                      </Typography>
+                    </Box>
                   </Box>
-                ) : (
-                  nextFollowups.map((f) => renderFollowupItem(f, false))
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
-
-          {/* Column 2: Missed Follow-Ups */}
-          <Grid item xs={12} md={6}>
-            <Card sx={{ border: missedFollowups.length > 0 ? '1px solid #fca5a5' : '1px solid #cbd5e1', borderRadius: '14px', boxShadow: '0 4px 20px rgba(0,0,0,0.03)', bgcolor: '#ffffff', overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
-              {/* Column 2 Header */}
-              <Box sx={{ px: 2.5, py: 1.8, bgcolor: missedFollowups.length > 0 ? '#fff5f5' : '#f8fafc', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <WarningIcon sx={{ color: missedFollowups.length > 0 ? '#ef4444' : '#64748b', fontSize: 22 }} />
-                  <Typography variant="subtitle1" sx={{ fontWeight: 800, color: missedFollowups.length > 0 ? '#ef4444' : '#0c1f54' }}>
-                    Missed Follow-Ups
-                  </Typography>
+                  <Chip
+                    label={tomorrowFollowups.length}
+                    size="small"
+                    sx={{ fontWeight: 800, bgcolor: '#fef3c7', color: '#b45309', height: 22 }}
+                  />
                 </Box>
-                <Chip
-                  label={missedFollowups.length}
-                  size="small"
-                  sx={{ fontWeight: 800, bgcolor: missedFollowups.length > 0 ? '#fef2f2' : '#f1f5f9', color: missedFollowups.length > 0 ? '#ef4444' : '#64748b', height: 22 }}
-                />
-              </Box>
 
-              {/* Column 2 List Body */}
-              <CardContent sx={{ p: 0, flexGrow: 1, overflowY: 'auto', maxHeight: 680 }}>
-                {missedFollowups.length === 0 ? (
-                  <Box sx={{ textAlign: 'center', py: 6, px: 2 }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
-                      No missed follow-ups! Great job 🎉
-                    </Typography>
+                <CardContent sx={{ p: 0, flexGrow: 1, overflowY: 'auto', maxHeight: 600 }}>
+                  {tomorrowFollowups.length === 0 ? (
+                    <Box sx={{ textAlign: 'center', py: 5, px: 2 }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
+                        No follow-ups scheduled for tomorrow.
+                      </Typography>
+                    </Box>
+                  ) : (
+                    tomorrowFollowups.map((f) => renderFollowupItem(f, 'tomorrow'))
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
+          {/* Section 2: Today's Follow-Ups */}
+          {(activeTab === 'all' || activeTab === 'today') && (
+            <Grid item xs={12} md={activeTab === 'all' ? 6 : 12}>
+              <Card sx={{ border: '1px solid #bbf7d0', borderRadius: '14px', boxShadow: '0 4px 20px rgba(22, 163, 74, 0.05)', bgcolor: '#ffffff', overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <Box sx={{ px: 2.5, py: 1.8, bgcolor: '#f0fdf4', borderBottom: '1px solid #bbf7d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <EventIcon sx={{ color: '#16a34a', fontSize: 22 }} />
+                    <Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#15803d', lineHeight: 1.2 }}>
+                        Today's Follow-Ups
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#15803d', fontWeight: 600 }}>
+                        Scheduled for connect today ({getTodayString()})
+                      </Typography>
+                    </Box>
                   </Box>
-                ) : (
-                  missedFollowups.map((f) => renderFollowupItem(f, true))
-                )}
-              </CardContent>
-            </Card>
-          </Grid>
+                  <Chip
+                    label={todayFollowups.length}
+                    size="small"
+                    sx={{ fontWeight: 800, bgcolor: '#dcfce7', color: '#15803d', height: 22 }}
+                  />
+                </Box>
+
+                <CardContent sx={{ p: 0, flexGrow: 1, overflowY: 'auto', maxHeight: 600 }}>
+                  {todayFollowups.length === 0 ? (
+                    <Box sx={{ textAlign: 'center', py: 5, px: 2 }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
+                        No follow-ups scheduled for today.
+                      </Typography>
+                    </Box>
+                  ) : (
+                    todayFollowups.map((f) => renderFollowupItem(f, 'today'))
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
+          {/* Section 3: Upcoming Follow-Ups */}
+          {(activeTab === 'all' || activeTab === 'upcoming') && (
+            <Grid item xs={12} md={activeTab === 'all' ? 6 : 12}>
+              <Card sx={{ border: '1px solid #c7d2fe', borderRadius: '14px', boxShadow: '0 4px 20px rgba(37, 99, 235, 0.05)', bgcolor: '#ffffff', overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <Box sx={{ px: 2.5, py: 1.8, bgcolor: '#eef2ff', borderBottom: '1px solid #c7d2fe', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <NextIcon sx={{ color: '#3730a3', fontSize: 22 }} />
+                    <Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#3730a3', lineHeight: 1.2 }}>
+                        Upcoming (Future)
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#3730a3', fontWeight: 600 }}>
+                        Future scheduled follow-ups
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Chip
+                    label={upcomingFollowups.length}
+                    size="small"
+                    sx={{ fontWeight: 800, bgcolor: '#e0e7ff', color: '#3730a3', height: 22 }}
+                  />
+                </Box>
+
+                <CardContent sx={{ p: 0, flexGrow: 1, overflowY: 'auto', maxHeight: 600 }}>
+                  {upcomingFollowups.length === 0 ? (
+                    <Box sx={{ textAlign: 'center', py: 5, px: 2 }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
+                        No future upcoming follow-ups.
+                      </Typography>
+                    </Box>
+                  ) : (
+                    upcomingFollowups.map((f) => renderFollowupItem(f, 'upcoming'))
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+
+          {/* Section 4: Yesterday / Overdue Follow-Ups */}
+          {(activeTab === 'all' || activeTab === 'yesterday') && (
+            <Grid item xs={12} md={activeTab === 'all' ? 6 : 12}>
+              <Card sx={{ border: '1px solid #fca5a5', borderRadius: '14px', boxShadow: '0 4px 20px rgba(239, 68, 68, 0.05)', bgcolor: '#ffffff', overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <Box sx={{ px: 2.5, py: 1.8, bgcolor: '#fff5f5', borderBottom: '1px solid #fca5a5', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <WarningIcon sx={{ color: '#ef4444', fontSize: 22 }} />
+                    <Box>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#b91c1c', lineHeight: 1.2 }}>
+                        Yesterday / Overdue
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#b91c1c', fontWeight: 600 }}>
+                        Missed or past follow-up tasks
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Chip
+                    label={yesterdayFollowups.length}
+                    size="small"
+                    sx={{ fontWeight: 800, bgcolor: '#fef2f2', color: '#b91c1c', height: 22 }}
+                  />
+                </Box>
+
+                <CardContent sx={{ p: 0, flexGrow: 1, overflowY: 'auto', maxHeight: 600 }}>
+                  {yesterdayFollowups.length === 0 ? (
+                    <Box sx={{ textAlign: 'center', py: 5, px: 2 }}>
+                      <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
+                        No missed or overdue follow-ups! Great job 🎉
+                      </Typography>
+                    </Box>
+                  ) : (
+                    yesterdayFollowups.map((f) => renderFollowupItem(f, 'yesterday'))
+                  )}
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
         </Grid>
       )}
 
@@ -664,7 +872,7 @@ export default function FollowUps() {
                 <Box sx={{ mt: 2, display: 'flex', gap: 1.5 }}>
                   <TextField
                     type="date"
-                    label="Next Date"
+                    label="Date"
                     InputLabelProps={{ shrink: true }}
                     value={formData.next_followup_date || ''}
                     onChange={(e) => setFormData({ ...formData, next_followup_date: e.target.value })}
@@ -674,7 +882,7 @@ export default function FollowUps() {
                   />
                   <TextField
                     type="time"
-                    label="Next Time"
+                    label="Time"
                     InputLabelProps={{ shrink: true }}
                     value={formData.next_followup_time || ''}
                     onChange={(e) => setFormData({ ...formData, next_followup_time: e.target.value })}
@@ -699,6 +907,7 @@ export default function FollowUps() {
               <MenuItem value="Follow-Up Scheduled">Follow-Up Scheduled</MenuItem>
               <MenuItem value="Won">Won</MenuItem>
               <MenuItem value="Lost">Lost</MenuItem>
+              <MenuItem value="Not Interested">Not Interested</MenuItem>
             </TextField>
 
             {/* New Note Input Field */}

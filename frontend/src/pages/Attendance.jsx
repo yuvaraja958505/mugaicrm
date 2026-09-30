@@ -25,7 +25,7 @@ import {
   CameraAlt as CameraIcon,
   Close as CloseIcon,
 } from '@mui/icons-material';
-import api from '../api';
+import api, { API_BASE_URL } from '../api';
 import PunchDrawer from '../components/PunchDrawer';
 
 export default function Attendance() {
@@ -97,10 +97,10 @@ export default function Attendance() {
                 </Box>
                 {isPunchedIn && todayRecord.punch_in_image && (
                   <Avatar
-                    src={`http://localhost/mugai/api/${todayRecord.punch_in_image}`}
+                    src={`${API_BASE_URL}/${todayRecord.punch_in_image}`}
                     variant="rounded"
                     sx={{ width: 40, height: 40, cursor: 'pointer' }}
-                    onClick={() => setPhotoDialogUrl(`http://localhost/mugai/api/${todayRecord.punch_in_image}`)}
+                    onClick={() => setPhotoDialogUrl(`${API_BASE_URL}/${todayRecord.punch_in_image}`)}
                   />
                 )}
               </Box>
@@ -118,10 +118,10 @@ export default function Attendance() {
                 </Box>
                 {isPunchedOut && todayRecord.punch_out_image && (
                   <Avatar
-                    src={`http://localhost/mugai/api/${todayRecord.punch_out_image}`}
+                    src={`${API_BASE_URL}/${todayRecord.punch_out_image}`}
                     variant="rounded"
                     sx={{ width: 40, height: 40, cursor: 'pointer' }}
-                    onClick={() => setPhotoDialogUrl(`http://localhost/mugai/api/${todayRecord.punch_out_image}`)}
+                    onClick={() => setPhotoDialogUrl(`${API_BASE_URL}/${todayRecord.punch_out_image}`)}
                   />
                 )}
               </Box>
@@ -176,16 +176,16 @@ export default function Attendance() {
                       <TableCell>{row.punch_in_time ? <Chip label={row.punch_in_time} size="small" variant="outlined" sx={{ fontWeight: 700, borderColor: '#0c1f54', color: '#0c1f54' }} /> : '-'}</TableCell>
                       <TableCell>
                         {row.punch_in_image ? (
-                          <IconButton size="small" onClick={() => setPhotoDialogUrl(`http://localhost/mugai/api/${row.punch_in_image}`)}>
-                            <Avatar src={`http://localhost/mugai/api/${row.punch_in_image}`} variant="rounded" sx={{ width: 32, height: 32 }} />
+                          <IconButton size="small" onClick={() => setPhotoDialogUrl(`${API_BASE_URL}/${row.punch_in_image}`)}>
+                            <Avatar src={`${API_BASE_URL}/${row.punch_in_image}`} variant="rounded" sx={{ width: 32, height: 32 }} />
                           </IconButton>
                         ) : '-'}
                       </TableCell>
                       <TableCell>{row.punch_out_time ? <Chip label={row.punch_out_time} size="small" variant="outlined" sx={{ fontWeight: 700, borderColor: '#0c1f54', color: '#0c1f54' }} /> : '-'}</TableCell>
                       <TableCell>
                         {row.punch_out_image ? (
-                          <IconButton size="small" onClick={() => setPhotoDialogUrl(`http://localhost/mugai/api/${row.punch_out_image}`)}>
-                            <Avatar src={`http://localhost/mugai/api/${row.punch_out_image}`} variant="rounded" sx={{ width: 32, height: 32 }} />
+                          <IconButton size="small" onClick={() => setPhotoDialogUrl(`${API_BASE_URL}/${row.punch_out_image}`)}>
+                            <Avatar src={`${API_BASE_URL}/${row.punch_out_image}`} variant="rounded" sx={{ width: 32, height: 32 }} />
                           </IconButton>
                         ) : '-'}
                       </TableCell>

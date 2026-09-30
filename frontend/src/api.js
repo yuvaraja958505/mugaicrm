@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // API Axios instance configured for PHP backend
-const API_BASE_URL = 'http://localhost/mugai/api';
+const API_BASE_URL = 'http://localhost/mugai_tech/mugaicrm/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
